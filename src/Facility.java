@@ -18,11 +18,6 @@ public class Facility {
     try {
 
       //PENDENTE: ARRUMAR VALORES DOS PARÂMETROS
-      // U
-      double U[] = new double[] { 5, 7, 9 };
-
-      // u
-      double u[] = new double[] { 30, 40, 50 };
 
       double ListaErros[] = new double[] { 1, 2, 3, 4 };
 
@@ -37,14 +32,20 @@ public class Facility {
       double Punicao = 1;
 
       // Pods e Nodes
-      int nPods = u.length;
-      int nNodes = U.length;
+      int nPods = 3;
+      int nNodes = 5;
+
+      // U
+      GRBVar[] U = new GRBVar[nNodes];
+      // u
+      GRBVar u[] = new GRBVar[nPods];
 
       // Modelo
       GRBEnv env = new GRBEnv();
       GRBModel model = new GRBModel(env);
       model.set(GRB.StringAttr.ModelName, "nodePodsAllocation");
 
+      //restricao 5, para falar que x é binario
       GRBVar[] x = new GRBVar[nNodes];
       for (int i = 0; i < nNodes; ++i) {
         x[i] = model.addVar(0, 1, -CustoOperacional, GRB.BINARY, "x_" + i);
@@ -53,6 +54,7 @@ public class Facility {
       // Onde um pod é atendido por um node 
       GRBVar[][] y = new GRBVar[nNodes][nPods];
 
+      //restricao 6, para falar que y é binario
       for (int i = 0; i < nNodes; ++i) {
         for (int j = 0; j < nPods; ++j) {
           y[i][j] = model.addVar(0, 1, Beneficio, GRB.BINARY, "y_" + i + "," + j);
@@ -88,12 +90,17 @@ public class Facility {
       model.addConstr(sumY, GRB.EQUAL, 1, "UmPodPorNo");
 
       // restrição 4 - entender melhor
-      // GRBLinExpr sum_u = new GRBLinExpr();
-      // for (int i = 0; i < nNodes; ++i) {
-      //   for (int j = 0; j < nPods; ++j) { 
-      //     sum_u.addTerm(1.0, u[i]y[i][j]);
-      //   }
-      // }
+      GRBLinExpr sum_u = new GRBLinExpr();
+      for (int i = 0; i < nNodes; ++i) {
+         for (int j = 0; j < nPods; ++j) {
+          //não consigo colocar u[i]y[i][j] na mesma linha :/ 
+          sum_u.addTerm(1.0, u[i]);
+          sum_u.addTerm(1.0, y[i][j]);
+         }
+      }
+
+      //esse U[i]x[i] nao é aceito
+      //model.addConstr(sum_u, GRB.LESS_EQUAL, U[i]x[i], "UmPodPorNo");
 
       // nó fechado
       for (int j = 0; j < nPods; ++j) { 
