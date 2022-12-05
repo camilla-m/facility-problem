@@ -22,7 +22,7 @@ public class Facility {
       double ListaErros[] = new double[] { 1, 2, 3, 4 };
 
       // Fixed costs: faz sentido para a gente?
-      double FixedCosts[] =
+      double CustoFixo[] =
           new double[] { 12000, 15000, 17000, 13000, 16000 };
 
       double CustoOperacional = 21;
@@ -36,9 +36,9 @@ public class Facility {
       int nNodes = 5;
 
       // U
-      GRBVar[] U = new GRBVar[nNodes];
+      double U[] = new double[] { 20, 30, 40, 50 };
       // u
-      GRBVar u[] = new GRBVar[nPods];
+      double u[] = new double[] { 1, 2, 3, 4 };
 
       // Modelo
       GRBEnv env = new GRBEnv();
@@ -79,28 +79,38 @@ public class Facility {
       }
 
       //restrição 3
-      GRBLinExpr sumY = new GRBLinExpr();
+      GRBLinExpr somatorio_Y;
 
-      for (int i = 0; i < nNodes; ++i) {
-        for (int j = 0; j < nPods; ++j) { 
-          sumY.addTerm(1.0, y[i][j]);
-        }
+      for (int j = 0; j < nPods; ++j) {
+      
+        somatorio_Y = new GRBLinExpr();
+      
+         for (int i = 0; i < nNodes; ++i) {
+          somatorio_Y.addTerm(1.0, y[i][j]);
+         }
+      
+            model.addConstr(somatorio_Y, GRB.EQUAL, 1, "Todo pod tem que ser atendido por um, e somente um, nó.");
       }
-
-      model.addConstr(sumY, GRB.EQUAL, 1, "UmPodPorNo");
 
       // restrição 4 - entender melhor
-      GRBLinExpr sum_u = new GRBLinExpr();
-      for (int i = 0; i < nNodes; ++i) {
-         for (int j = 0; j < nPods; ++j) {
-          //não consigo colocar u[i]y[i][j] na mesma linha :/ 
-          sum_u.addTerm(1.0, u[i]);
-          sum_u.addTerm(1.0, y[i][j]);
-         }
-      }
+      GRBLinExpr somatorio_U;
 
-      //esse U[i]x[i] nao é aceito
-      //model.addConstr(sum_u, GRB.LESS_EQUAL, U[i]x[i], "UmPodPorNo");
+      GRBLinExpr capacidadeParaNoAberto;
+
+      for (int i = 0; i < nNodes; ++i) {
+      
+        somatorio_U = new GRBLinExpr();
+
+        capacidadeParaNoAberto = new GRBLinExpr();
+      
+         for (int j = 0; j < nPods; ++j) {
+          somatorio_U.addTerm(u[i], y[i][j]);
+         }
+
+         capacidadeParaNoAberto.addTerm(U[i], x[i]);
+      
+         model.addConstr(somatorio_U, GRB.LESS_EQUAL, capacidadeParaNoAberto, "Os recursos utilizados pelos pods alocados a um nó não podem ultrapassar a capacidade máxima deste.");
+      }
 
       // nó fechado
       for (int j = 0; j < nPods; ++j) { 
@@ -129,14 +139,14 @@ public class Facility {
 
       // custo fixo. faz sentido essa parte?
       System.out.println("iniciando:");
-      double maxFixed = -GRB.INFINITY;
+      double maxFixo = -GRB.INFINITY;
       for (int i = 0; i < nNodes; ++i) {
-        if (FixedCosts[i] > maxFixed) {
-          maxFixed = FixedCosts[i];
+        if (CustoFixo[i] > maxFixo) {
+          maxFixo = CustoFixo[i];
         }
       }
       for (int i = 0; i < nPods; ++i) {
-        if (FixedCosts[i] == maxFixed) {
+        if (CustoFixo[i] == maxFixo) {
           x[i].set(GRB.DoubleAttr.Start, 0.0);
           System.out.println("Fechando Node " + i + "\n");
           break;
