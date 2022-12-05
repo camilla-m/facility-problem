@@ -32,8 +32,8 @@ public class Facility {
       double Punicao = 1;
 
       // Pods e Nodes
-      int nPods = 3;
-      int nNodes = 5;
+      int nPods = 4;
+      int nNodes = 4;
 
       // U
       double U[] = new double[] { 20, 30, 40, 50 };
