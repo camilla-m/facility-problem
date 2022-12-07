@@ -19,26 +19,26 @@ public class Facility {
 
       //PENDENTE: ARRUMAR VALORES DOS PARÂMETROS
 
-      double ListaErros[] = new double[] { 1, 2, 3, 4 };
+      double ListaErros[] = new double[] { 1, 1, 1, 1 };
 
       // Fixed costs: faz sentido para a gente?
       double CustoFixo[] =
-          new double[] { 12000, 15000, 17000, 13000, 16000 };
+          new double[] { 10, 10, 10, 10, 10 };
 
-      double CustoOperacional = 21;
+      double CustoOperacional = 5;
 
       double Beneficio = 3;
 
       double Punicao = 1;
 
       // Pods e Nodes
-      int nPods = 4;
+      int nPods = 15;
       int nNodes = 4;
 
       // U
-      double U[] = new double[] { 20, 30, 40, 50 };
+      double U[] = new double[] { 10, 10, 10, 10 };
       // u
-      double u[] = new double[] { 1, 2, 3, 4 };
+      double u[] = new double[] { 1, 1, 1, 1 };
 
       // Modelo
       GRBEnv env = new GRBEnv();
