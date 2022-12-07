@@ -19,26 +19,22 @@ public class Facility {
 
       //PENDENTE: ARRUMAR VALORES DOS PARÂMETROS
 
-      double ListaErros[] = new double[] { 1, 1, 1, 1 };
+      double e[] = new double[] { 1, 1, 1, 1 };
 
-      // Fixed costs: faz sentido para a gente?
-      double CustoFixo[] =
-          new double[] { 10, 10, 10, 10, 10 };
+      double alpha = 5;
 
-      double CustoOperacional = 5;
+      double beta = 3;
 
-      double Beneficio = 3;
-
-      double Punicao = 1;
+      double gamma = 1;
 
       // Pods e Nodes
-      int nPods = 15;
+      int nPods = 6;
       int nNodes = 4;
 
       // U
       double U[] = new double[] { 10, 10, 10, 10 };
       // u
-      double u[] = new double[] { 1, 1, 1, 1 };
+      double u[] = new double[] { 1, 1, 1, 1, 1, 1 };
 
       // Modelo
       GRBEnv env = new GRBEnv();
@@ -48,37 +44,46 @@ public class Facility {
       //restricao 5, para falar que x é binario
       GRBVar[] x = new GRBVar[nNodes];
       for (int i = 0; i < nNodes; ++i) {
-        x[i] = model.addVar(0, 1, -CustoOperacional, GRB.BINARY, "x_" + i);
+        x[i] = model.addVar(0.0, 1.0, 0.0, GRB.BINARY, "x_" + i);
       }
 
-      // Onde um pod é atendido por um node 
+      // Se um pod j é atendido por um node i
       GRBVar[][] y = new GRBVar[nNodes][nPods];
 
       //restricao 6, para falar que y é binario
       for (int i = 0; i < nNodes; ++i) {
         for (int j = 0; j < nPods; ++j) {
-          y[i][j] = model.addVar(0, 1, Beneficio, GRB.BINARY, "y_" + i + "," + j);
+          y[i][j] = model.addVar(0.0, 1.0, 0.0, GRB.BINARY, "y_" + i + "," + j);
         }
       }
 
-      // MAXIMIZAR A FUNÇÃO OBJETIVA
+      // MAXIMIZAR A FUNÇÃO OBJETIVO
       model.set(GRB.IntAttr.ModelSense, GRB.MAXIMIZE);
 
-      GRBLinExpr sum = new GRBLinExpr();
+      // Montar expressão linear da fun obj
+      
+      model.setObjective(objetivo, GRB.MAXIMIZE);
+
+      // Criação da restrição 1
+
+      GRBLinExpr somatorio = new GRBLinExpr();
 
       for (int i = 0; i < nNodes; ++i) { 
-        sum.addTerm(1.0, x[i]);
+        somatorio.addTerm(1.0, x[i]);
       }
 
-      model.addConstr(sum, GRB.GREATER_EQUAL, 1, "MinimoNodes"); //restrição 1
+      model.addConstr(somatorio, GRB.GREATER_EQUAL, 1, "MinimoNodes");
+
+      // Criação da restrição 2
 
       for (int i = 0; i < nNodes; ++i) {
         for (int j = 0; j < nPods; ++j) { 
-          model.addConstr(y[i][j], GRB.LESS_EQUAL, x[i], "AlocacaoNoAberto_" + i + "," + j); // restrição 2
+          model.addConstr(y[i][j], GRB.LESS_EQUAL, x[i], "AlocacaoNoAberto_" + i + "," + j); 
         }
       }
 
-      //restrição 3
+      // Criação da restrição 3
+      
       GRBLinExpr somatorio_Y;
 
       for (int j = 0; j < nPods; ++j) {
@@ -89,10 +94,11 @@ public class Facility {
           somatorio_Y.addTerm(1.0, y[i][j]);
          }
       
-            model.addConstr(somatorio_Y, GRB.EQUAL, 1, "Todo pod tem que ser atendido por um, e somente um, nó.");
+            model.addConstr(somatorio_Y, GRB.EQUAL, 1, "AtendimentoPod_" + j);
       }
 
-      // restrição 4 - entender melhor
+      // Criação da restrição 4
+
       GRBLinExpr somatorio_U;
 
       GRBLinExpr capacidadeParaNoAberto;
@@ -104,80 +110,72 @@ public class Facility {
         capacidadeParaNoAberto = new GRBLinExpr();
       
          for (int j = 0; j < nPods; ++j) {
-          somatorio_U.addTerm(u[i], y[i][j]);
+          somatorio_U.addTerm(u[j], y[i][j]);
          }
 
          capacidadeParaNoAberto.addTerm(U[i], x[i]);
       
-         model.addConstr(somatorio_U, GRB.LESS_EQUAL, capacidadeParaNoAberto, "Os recursos utilizados pelos pods alocados a um nó não podem ultrapassar a capacidade máxima deste.");
+         model.addConstr(somatorio_U, GRB.LESS_EQUAL, capacidadeParaNoAberto, "CapacidadeNo_" + i);
       }
 
-      // nó fechado
-      for (int j = 0; j < nPods; ++j) { 
-        GRBLinExpr ptot = new GRBLinExpr();
-        for (int i = 0; i < nNodes; ++i) { //restricao 1
-          ptot.addTerm(1.0, y[i][j]);     
-          GRBLinExpr limit = new GRBLinExpr();
-          limit.addTerm(u[i], x[i]);
-          model.addConstr(ptot, GRB.LESS_EQUAL, limit, "u" + i);
-        }
-      }
+      // // resto do código anterior. faz sentido?
+      // for (int i = 0; i < nNodes; ++i) {
+      //   x[i].set(GRB.DoubleAttr.Start, 1.0);
+      // }
 
-    // U restrições
-      for (int i = 0; i < nNodes; ++i) {
-        GRBLinExpr dtot = new GRBLinExpr();
-          for (int j = 0; j < nPods; ++j) {
-           dtot.addTerm(1.0, y[i][j]);
-        }
-      model.addConstr(dtot, GRB.EQUAL, 1, "U" + i);
-    }
-
-      // resto do código anterior. faz sentido?
-      for (int i = 0; i < nNodes; ++i) {
-        x[i].set(GRB.DoubleAttr.Start, 1.0);
-      }
-
-      // custo fixo. faz sentido essa parte?
-      System.out.println("iniciando:");
-      double maxFixo = -GRB.INFINITY;
-      for (int i = 0; i < nNodes; ++i) {
-        if (CustoFixo[i] > maxFixo) {
-          maxFixo = CustoFixo[i];
-        }
-      }
-      for (int i = 0; i < nPods; ++i) {
-        if (CustoFixo[i] == maxFixo) {
-          x[i].set(GRB.DoubleAttr.Start, 0.0);
-          System.out.println("Fechando Node " + i + "\n");
-          break;
-        }
-      }
+      // // custo fixo. faz sentido essa parte?
+      // System.out.println("iniciando:");
+      // double maxFixo = -GRB.INFINITY;
+      // for (int i = 0; i < nNodes; ++i) {
+      //   if (CustoFixo[i] > maxFixo) {
+      //     maxFixo = CustoFixo[i];
+      //   }
+      // }
+      // for (int i = 0; i < nPods; ++i) {
+      //   if (CustoFixo[i] == maxFixo) {
+      //     x[i].set(GRB.DoubleAttr.Start, 0.0);
+      //     System.out.println("Fechando Node " + i + "\n");
+      //     break;
+      //   }
+      // }
 
       // Resolver 'root relaxation'
-      model.set(GRB.IntParam.Method, GRB.METHOD_BARRIER);
+      //model.set(GRB.IntParam.Method, GRB.METHOD_BARRIER);
 
       // Resolve
       model.optimize();
 
-      // printa solução
-      System.out.println("\nTOTAL DE CUSTOS: " + model.get(GRB.DoubleAttr.ObjVal));
-      System.out.println("SOLUCAO:");
+      // Imprime solução
+
+      System.out.println("\nValor da função objetivo: " + model.get(GRB.DoubleAttr.ObjVal));
+
+      System.out.println("SOLUÇÃO:");
+
       for (int i = 0; i < nNodes; ++i) {
-        if (x[i].get(GRB.DoubleAttr.X) > 0.99) {
-          System.out.println("Nó " + i + " i:");
-          for (int j = 0; j < nNodes; ++j) {
-            if (y[i][j].get(GRB.DoubleAttr.X) > 0.0001) {
-              System.out.println("  deploya " +
-                  y[i][i].get(GRB.DoubleAttr.X) +
-                  " unidades de pods para Node " + i);
-            }
-          }
+        
+        System.out.println("x_" + i + " = " + x[i].get(GRB.DoubleAttr.X));
+
+        if (x[i].get(GRB.DoubleAttr.X) == 1.0) {
+          System.out.println("Node " + i + " aberto!");
         } else {
           System.out.println("Node " + i + " fechado!");
         }
       }
 
-      // Dispose of model and environment
+      for (int i = 0; i < nNodes; ++i) {
+
+        for (int j = 0; j < nPods; ++j) {
+
+          System.out.println("y_" + i + j + " = " + y[i][j].get(GRB.DoubleAttr.X));
+
+          if (y[i][j].get(GRB.DoubleAttr.X) == 1.0) {
+            System.out.println("Pod " + j + " alocado ao node " + i + ".");
+          }   
+        }
+      }
+
+      // Dispose no modelo e ambiente
+  
       model.dispose();
       env.dispose();
 
