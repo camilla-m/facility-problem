@@ -61,6 +61,30 @@ public class Facility {
       model.set(GRB.IntAttr.ModelSense, GRB.MAXIMIZE);
 
       // Montar expressão linear da fun obj
+
+      // Create variables
+      GRBVar z = model . addVar (0.0 , 1.0 , 0.0 , GRB.BINARY , "z");
+
+      // Set objective : maximize x + y + 2 z
+
+      GRBLinExpr custoOperacional = new GRBLinExpr();
+
+      GRBLinExpr beneficio = new GRBLinExpr();
+
+      GRBLinExpr punicao = new GRBLinExpr();
+
+      GRBExpr funObj = new GRBExpr() {};
+
+      for (int i = 0; i < nNodes; ++i) { 
+        custoOperacional.addTerm(-alpha, x[i]);
+        for (int j = 0; j < nPods; ++j) {
+          beneficio.addTerm(beta, y[i][j]);
+          punicao.addTerm(e[j], y[i][j]);
+          model.setObjective(custoOperacional + beneficio - punicao, GRB.MAXIMIZE);
+        }
+      }
+
+
       
       model.setObjective(objetivo, GRB.MAXIMIZE);
 
