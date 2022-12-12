@@ -19,7 +19,7 @@ public class Facility {
 
       //PENDENTE: ARRUMAR VALORES DOS PARÂMETROS
 
-      double e[] = new double[] { 1, 1, 1, 1 };
+      double e[] = new double[] { 1, 1, 1, 1, 1, 1 };
 
       double alpha = 5;
 
@@ -62,31 +62,18 @@ public class Facility {
 
       // Montar expressão linear da fun obj
 
-      // Create variables
-      GRBVar z = model . addVar (0.0 , 1.0 , 0.0 , GRB.BINARY , "z");
+      GRBLinExpr funcaoObjetivo = new GRBLinExpr();
 
-      // Set objective : maximize x + y + 2 z
-
-      GRBLinExpr custoOperacional = new GRBLinExpr();
-
-      GRBLinExpr beneficio = new GRBLinExpr();
-
-      GRBLinExpr punicao = new GRBLinExpr();
-
-      GRBExpr funObj = new GRBExpr() {};
-
-      for (int i = 0; i < nNodes; ++i) { 
-        custoOperacional.addTerm(-alpha, x[i]);
-        for (int j = 0; j < nPods; ++j) {
-          beneficio.addTerm(beta, y[i][j]);
-          punicao.addTerm(e[j], y[i][j]);
-          model.setObjective(custoOperacional + beneficio - punicao, GRB.MAXIMIZE);
-        }
+      for(int i = 0; i < nNodes; i++)
+      {
+         funcaoObjetivo.addTerm(-alpha, x[i]);
+         for(int j = 0; j < nPods; j++)
+         {
+            funcaoObjetivo.addTerm(beta, y[i][j]);
+            funcaoObjetivo.addTerm(-gamma * e[j], y[i][j]);
+         }
       }
-
-
-      
-      model.setObjective(objetivo, GRB.MAXIMIZE);
+      model.setObjective(funcaoObjetivo, GRB.MAXIMIZE);
 
       // Criação da restrição 1
 
