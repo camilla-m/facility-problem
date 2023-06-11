@@ -134,7 +134,7 @@ public class CustomMain {
 
         int[] tamanhosNodes = {5, 10, 20, 50, 100, 200};
       
-        int numberExecutions = 5;
+        int numberExecutions = 10;
       
         FileWriter writerKubescheduler = new FileWriter(new File("kubescheduler.csv"));
         FileWriter writerFormulation = new FileWriter(new File("formulation.csv"));
@@ -310,6 +310,7 @@ public class CustomMain {
                     GRBEnv env = new GRBEnv();
                     GRBModel model = new GRBModel(env);
                     model.set(GRB.StringAttr.ModelName, "nodePodsAllocation");
+                    model.set(GRB.DoubleParam.MIPGap, 0.01);
 
                     //restricao 5, para falar que x é binario
                     GRBVar[] x = new GRBVar[numNodes];
