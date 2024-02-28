@@ -142,6 +142,8 @@ public class CustomMain {
       	writerKubescheduler.write("number of pods; number of nodes; solution cost; time (ms) \n");
         writerFormulation.write("number of pods; number of nodes; solution cost; time (ms) \n");
 
+        // cria a instancia 
+        // 
         for(int numPods : tamanhosPods) {
             for(int numNodes : tamanhosNodes) {
               
@@ -172,6 +174,7 @@ public class CustomMain {
                     KubeScheduler kubeScheduler = new KubeScheduler();
 
                     /* Create nodes using random data. */
+                    // todo classe para in
                     for (int i = 0; i < numNodes; i++) {
                         int capacity = ThreadLocalRandom.current().nextInt(capacityMin, capacityMax + 1);
                         int openingCost = ThreadLocalRandom.current().nextInt(openingCostInit, openingCostEnd + 1);
@@ -193,6 +196,11 @@ public class CustomMain {
 
                     long startTime = System.currentTimeMillis();
                     
+                    // adicionar variavel de tempo t como um t + 1 em cada uma das execucoes teste de 10 execucoes
+                    // a cada mudança alterar o numero de pods e nós
+                    // É NECESSÁRIO cada tempo rodar 10x? acho que nesse caso n
+                    // criar uma variável de sort pod/node para sortear em cada execucao
+
                     for (int i = 0; i < numberExecutions; i++) {
 
                         allocation.clear();
