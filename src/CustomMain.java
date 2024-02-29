@@ -87,11 +87,6 @@ class Node implements Comparable<Node> {
         return pods;
     }
 
-
-    public List<Pod> getPods() {
-        return pods;
-    }
-
     public int getIndex() {
         return index;
     }
@@ -110,9 +105,65 @@ class Node implements Comparable<Node> {
     }
 }
 
+class Instance {
+    int numNodes;
+    int numPods;
+
+    public Instance(int numPods, int numNodes) {
+        this.numPods = numPods;
+        this.numNodes = numNodes;
+    }
+
+    public int getCapacity() {
+        int capacityMin = numPods / numNodes + 1; // Specify the minimum node capacity
+        int capacityMax = numPods * 2; // Specify the maximum node capacity    
+        
+        return ThreadLocalRandom.current().nextInt(capacityMin, capacityMax + 1);
+    }
+
+    public int getResourceUsage() {
+        int resourceUsageMin = 1; // Specify the minimum pod size
+        int resourceUsageMax = 10; // Specify the maximum pod size
+        
+        return ThreadLocalRandom.current().nextInt(resourceUsageMin, resourceUsageMax + 1);
+    }
+
+    public int getOpeningCost() {
+        int openingCostInit = 1; // Specify the minimum cost per unit opening node 
+        int openingCostEnd = 4 * numNodes; // Specify the maximum cost per unit opening node 
+        
+        return ThreadLocalRandom.current().nextInt(openingCostInit, openingCostEnd + 1);
+    }
+
+    public int getAllocationCost() {
+        int allocatingCostInit = 1; // Specify the minimum cost per unit allocation cost 
+        int allocatingCostEnd = 4 * numNodes; // Specify the maximum cost per unit allocation cost  
+        
+        return ThreadLocalRandom.current().nextInt(allocatingCostInit, allocatingCostEnd + 1);
+    }
+
+    public int getErrors() {
+        int errorsInit = 1; // Specify the minimum number of errors per pod
+        int errorsEnd = 20; // Specify the maximum number of errors per pod
+        
+        return ThreadLocalRandom.current().nextInt(errorsInit, errorsEnd + 1);
+    }
+
+    public int getErrorPenalization() {
+        int errorPenalizationInit = 1; // Specify the minimum error penalization per nodes
+        int errorPenalizationEnd = 10; // Specify the maximium error penalization per nodes
+
+        return ThreadLocalRandom.current().nextInt(errorPenalizationInit, errorPenalizationEnd + 1);
+    }
+
+    public boolean getNodeAffinity() {
+        return ThreadLocalRandom.current().nextBoolean();
+    }
+}
+
 class KubeScheduler {
     List<Node> nodes;
-    List<Pods> pendingPods;
+    List<Pod> pendingPods;
 
     public KubeScheduler() {
         this.nodes = new ArrayList<>();
@@ -131,8 +182,12 @@ class KubeScheduler {
         pendingPods.add(pod);
     }
 
-    public int getPendingPods() {
+    public int getPendingPodsQty() {
         return pendingPods.size();
+    }
+
+    public List<Pod> getPendingPodsList() {
+        return this.pendingPods;
     }
 
     public Node schedulePod(Pod pod, boolean nodeAvailable) {   
@@ -190,50 +245,24 @@ public class CustomMain {
                     /* Create the data structures and generate random data. */
                     List<Node> nodes = new ArrayList<>(numNodes);
                     List<Pod> pods = new ArrayList<>(numPods);
+                    List<Pod> pendingPodsList = new ArrayList<>();
                     HashMap<Pod, Node> allocation = new HashMap<>();
                     TreeSet<Node> openedNodes = new TreeSet<>();
 
-                    int capacityMin = numPods / numNodes + 1; // Specify the minimum node capacity
-                    int capacityMax = numPods * 2; // Specify the maximum node capacity
-
-                    int resourceUsageMin = 1; // Specify the minimum pod size
-                    int resourceUsageMax = 10; // Specify the maximum pod size
-
-                    int openingCostInit = 1; // Specify the minimum cost per unit opening node 
-                    int openingCostEnd = 4 * numNodes; // Specify the maximum cost per unit opening node 
-
-                    int allocatingCostInit = 1; // Specify the minimum cost per unit allocation cost 
-                    int allocatingCostEnd = 4 * numNodes; // Specify the maximum cost per unit allocation cost 
-
-                    int errorsInit = 1; // Specify the minimum number of errors per pod
-                    int errorsEnd = 20; // Specify the maximum number of errors per pod
-                    
-                    // TODO: licao de casa pesquisar no deepreserve valores que fazem sentido
-
-                    int errorPenalizationInit = 1; // Specify the minimum error penalization per nodes
-                    int errorPenalizationEnd = 10; // Specify the maximium error penalization per nodes
-
                     KubeScheduler kubeScheduler = new KubeScheduler();
+
+                    Instance instance = new Instance(numPods, numNodes);
 
                     /* Create nodes using random data. */
                     for (int i = 0; i < numNodes; i++) {
-                        int capacity = ThreadLocalRandom.current().nextInt(capacityMin, capacityMax + 1);
-                        int openingCost = ThreadLocalRandom.current().nextInt(openingCostInit, openingCostEnd + 1);
-                        int allocationCost = ThreadLocalRandom.current().nextInt(allocatingCostInit, allocatingCostEnd + 1);
-                        int errorPenalization = ThreadLocalRandom.current().nextInt(errorPenalizationInit, errorPenalizationEnd + 1);
-                        boolean nodeAffinity = ThreadLocalRandom.current().nextBoolean();
-
-                        Node node = new Node(capacity, i, openingCost, allocationCost, errorPenalization, nodeAffinity);
+                        Node node = new Node(instance.getCapacity(), i, instance.getOpeningCost(), instance.getAllocationCost(), instance.getErrorPenalization(), instance.getNodeAffinity());
                         nodes.add(node);    
                         kubeScheduler.addNode(node);
                     }
               
                     /* Create pods using random data. */
                     for (int j = 0; j < numPods; j++) {
-                        int resourceUsage = ThreadLocalRandom.current().nextInt(resourceUsageMin, resourceUsageMax + 1);
-                        int errors = ThreadLocalRandom.current().nextInt(errorsInit, errorsEnd + 1);
-
-                        Pod pod = new Pod(resourceUsage, j, errors);
+                        Pod pod = new Pod(instance.getResourceUsage(), j, instance.getErrors());
                         pods.add(pod);
                     }
 
@@ -264,7 +293,9 @@ public class CustomMain {
                         }
 
                         if(isNodeAvailable != true) {
-                            pendingPods = kubeScheduler.getPendingPods();
+                            pendingPods = kubeScheduler.getPendingPodsQty();
+                            pendingPodsList = kubeScheduler.getPendingPodsList();
+                            pods.addAll(pendingPodsList);
                         }
                     }
 
