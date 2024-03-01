@@ -269,6 +269,8 @@ public class CustomMain {
                             node.clear();
 
                         if(isNodeAvailable) {
+                            if(!pendingPodsList.isEmpty())
+                                pods.addAll(pendingPodsList);
                             for (Pod pod : pods) {
                                 Node allocatedNode = kubeScheduler.schedulePod(pod);
                                 allocation.put(pod, allocatedNode);
