@@ -167,39 +167,19 @@ class KubeScheduler {
 
     public KubeScheduler() {
         this.nodes = new ArrayList<>();
+        this.pendingPods = new ArrayList<>();
     }
 
     public void addNode(Node node) {
         nodes.add(node);
     }
 
-    public Node getRandomNode() {
-        Random random = new Random();
-        return nodes.get(random.nextInt(nodes.size()));
-    }
-
-    public void addToPendingPods(Pod pod) {
-        pendingPods.add(pod);
-    }
-
-    public int getPendingPodsQty() {
-        return pendingPods.size();
-    }
-
-    public List<Pod> getPendingPodsList() {
-        return this.pendingPods;
-    }
-
-    public Node schedulePod(Pod pod, boolean nodeAvailable) {   
-        if (nodeAvailable == true) {
+    public Node schedulePod(Pod pod) {
         for (Node node : nodes) {
             if (node.canAllocatePod(pod)) {
                 node.allocatePod(pod);
                 return node;
             }
-        } 
-        } else {
-            addToPendingPods(pod);
         }
         return null;
     }
@@ -221,17 +201,19 @@ class KubeScheduler {
 public class CustomMain {
     public static void main(String[] args) throws GRBException, IOException {
 
-        int[] tamanhosPods = {10, 50, 100, 200, 500, 1000, 5000, 10000};
+        int[] tamanhosPods = {50, 100, 200, 500, 1000, 5000, 10000};
 
-        int[] tamanhosNodes = {5, 10, 20, 50, 100, 200};
+        int[] tamanhosNodes = {10, 20, 50, 100, 200};
       
         int numberExecutions = 10;
       
         FileWriter writerKubescheduler = new FileWriter(new File("kubescheduler.csv"));
         FileWriter writerFormulation = new FileWriter(new File("formulation.csv"));
-        
-        writerKubescheduler.write("number of pods; number of nodes; solution cost; time (ms); slot of time; pending pods \n");
-        writerFormulation.write("number of pods; number of nodes; solution cost; time (ms); slot of time; pending pods \n");
+        FileWriter writerPodsPending = new FileWriter(new File("podspending.csv"));
+
+        writerKubescheduler.write("number of pods; number of nodes; solution cost; time (ms) \n");
+        writerFormulation.write("number of pods; number of nodes; solution cost; time (ms) \n");
+        writerPodsPending.write("number of pods; number of nodes; slot of time; pending pods \n");
 
         for(int numPods : tamanhosPods) {
             for(int numNodes : tamanhosNodes) {
@@ -270,7 +252,7 @@ public class CustomMain {
 
                     long startTime = System.currentTimeMillis();
 
-                    int totalTime = 5;
+                    int totalTime = 20;
 
                     int slotofTime = 0;
 
@@ -286,17 +268,22 @@ public class CustomMain {
                         for(Node node : nodes)
                             node.clear();
 
-                        for (Pod pod : pods) {
-                            Node allocatedNode = kubeScheduler.schedulePod(pod, isNodeAvailable);
-                            allocation.put(pod, allocatedNode);
-                            openedNodes.add(allocatedNode);
+                        if(isNodeAvailable) {
+                            for (Pod pod : pods) {
+                                Node allocatedNode = kubeScheduler.schedulePod(pod);
+                                allocation.put(pod, allocatedNode);
+                                openedNodes.add(allocatedNode);
+                            }
+                        } else {
+                            for (Pod pod : pods) {
+                                pendingPodsList.clear();
+                                pendingPodsList.add(pod);
+                                pendingPods = pendingPodsList.size();
+                            }
                         }
+                        slotofTime++;
 
-                        if(isNodeAvailable != true) {
-                            pendingPods = kubeScheduler.getPendingPodsQty();
-                            pendingPodsList = kubeScheduler.getPendingPodsList();
-                            pods.addAll(pendingPodsList);
-                        }
+                        writerPodsPending.write(numPods + "; " + numNodes + "; " + slotofTime + "; " + pendingPods + "\n");
                     }
 
 
@@ -334,7 +321,7 @@ public class CustomMain {
                     System.out.println("Total Cost: " + totalCost);  
                     System.out.println("Total time taken: " + elapsedTime + " ms");
               
-                    writerKubescheduler.write(numPods + "; " + numNodes + "; " + totalCost + "; " + elapsedTime  +  "; " + slotofTime +  "; " + pendingPods + "\n");
+                    writerKubescheduler.write(numPods + "; " + numNodes + "; " + totalCost + "; " + elapsedTime + "\n");
               
               
                     /* ============================================================================================================================================================ */
@@ -535,7 +522,7 @@ public class CustomMain {
                     System.out.println("Solution Cost: " + model.get(GRB.DoubleAttr.ObjVal));  
                     System.out.println("Total time taken: " + elapsedTime + " ms");
                       
-                    writerFormulation.write(numPods + "; " + numNodes + "; " + model.get(GRB.DoubleAttr.ObjVal) + "; " + elapsedTime +  "; " + slotofTime +  "; " + pendingPods + "\n");
+                    writerFormulation.write(numPods + "; " + numNodes + "; " + model.get(GRB.DoubleAttr.ObjVal) + "; " + elapsedTime + "\n");
 
                     /*System.out.println("SOLUÇÃO:");
 
@@ -573,11 +560,13 @@ public class CustomMain {
                         }
               
                     writerKubescheduler.flush();
-                  writerFormulation.flush();
+                    writerFormulation.flush();
+                    writerPodsPending.flush();
             }
         }
       
         writerKubescheduler.close();
         writerFormulation.close();
+        writerPodsPending.close();
     }
 }
