@@ -1,15 +1,10 @@
-import java.util.ArrayList;
-import java.util.List;
-import java.util.concurrent.ThreadLocalRandom;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.TreeSet;
-import java.util.Random;
+import gurobi.*;
+
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
-
-import gurobi.*;
+import java.util.*;
+import java.util.concurrent.ThreadLocalRandom;
 
 class Pod {
     private int resourceUsage;
@@ -90,7 +85,7 @@ class Node implements Comparable<Node> {
     public int getIndex() {
         return index;
     }
-  
+
     public void clear() {
         pods.clear();
     }
@@ -106,8 +101,15 @@ class Node implements Comparable<Node> {
 }
 
 class Instance {
-    int numNodes;
-    int numPods;
+    private int numPods;
+    private int numNodes;
+
+    /* Create the data structures and generate random data. */
+    private List<Node> nodes = new ArrayList<>(numNodes);
+    private List<Pod> pods = new ArrayList<>(numPods);
+    private List<Pod> pendingPodsList = new ArrayList<>();
+    private HashMap<Pod, Node> allocation = new HashMap<>();
+    private TreeSet<Node> openedNodes = new TreeSet<>();
 
     public Instance(int numPods, int numNodes) {
         this.numPods = numPods;
@@ -116,36 +118,37 @@ class Instance {
 
     public int getCapacity() {
         int capacityMin = numPods / numNodes + 1; // Specify the minimum node capacity
-        int capacityMax = numPods * 2; // Specify the maximum node capacity    
-        
+        int capacityMax = numPods * 2; // Specify the maximum node capacity
+
         return ThreadLocalRandom.current().nextInt(capacityMin, capacityMax + 1);
     }
 
     public int getResourceUsage() {
         int resourceUsageMin = 1; // Specify the minimum pod size
         int resourceUsageMax = 10; // Specify the maximum pod size
-        
+
         return ThreadLocalRandom.current().nextInt(resourceUsageMin, resourceUsageMax + 1);
     }
 
     public int getOpeningCost() {
-        int openingCostInit = 1; // Specify the minimum cost per unit opening node 
-        int openingCostEnd = 4 * numNodes; // Specify the maximum cost per unit opening node 
-        
+        int openingCostInit = 1; // Specify the minimum cost per unit opening node
+        int openingCostEnd = 4 * numNodes; // Specify the maximum cost per unit opening node
+
         return ThreadLocalRandom.current().nextInt(openingCostInit, openingCostEnd + 1);
     }
 
     public int getAllocationCost() {
-        int allocatingCostInit = 1; // Specify the minimum cost per unit allocation cost 
-        int allocatingCostEnd = 4 * numNodes; // Specify the maximum cost per unit allocation cost  
-        
+        //TODO generate ao inves de get e privados
+        int allocatingCostInit = 1; // Specify the minimum cost per unit allocation cost
+        int allocatingCostEnd = 4 * numNodes; // Specify the maximum cost per unit allocation cost
+
         return ThreadLocalRandom.current().nextInt(allocatingCostInit, allocatingCostEnd + 1);
     }
 
     public int getErrors() {
         int errorsInit = 1; // Specify the minimum number of errors per pod
         int errorsEnd = 20; // Specify the maximum number of errors per pod
-        
+
         return ThreadLocalRandom.current().nextInt(errorsInit, errorsEnd + 1);
     }
 
@@ -158,6 +161,55 @@ class Instance {
 
     public boolean getNodeAffinity() {
         return ThreadLocalRandom.current().nextBoolean();
+    }
+
+    public void createNodes() {
+        /* Create nodes using random data. */
+        for (int i = 0; i < numNodes; i++) {
+            Node node = new Node(getCapacity(), i, getOpeningCost(), getAllocationCost(), getErrorPenalization(), getNodeAffinity());
+            nodes.add(node);
+
+        }
+    }
+
+    public void createPods() {
+        /* Create pods using random data. */
+        for (int j = 0; j < numPods; j++) {
+            Pod pod = new Pod(getResourceUsage(), j, getErrors());
+            pods.add(pod);
+        }
+    }
+
+    public List<Node> getNodes() {
+        return nodes;
+    }
+
+    public List<Pod> getPods() {
+        return pods;
+    }
+
+    public void modifyNumberPods() {
+        int minValue = (int) (numPods * 0.05);
+        int maxValue = (int) (numPods * 0.30);
+
+        int modification = ThreadLocalRandom.current().nextInt(minValue, maxValue);
+        boolean randomBoolean = ThreadLocalRandom.current().nextBoolean();
+
+        if(randomBoolean) {
+            for(int i = 0; i < modification; i++) {
+                Pod pod = new Pod(getResourceUsage(), numPods + i, getErrors());
+                pods.add(pod);
+            }
+
+            numPods += modification;
+        }
+        else {
+            for(int i = 0; i < modification; i++) {
+                int randomIndex = ThreadLocalRandom.current().nextInt(0, numPods);
+                pods.remove(randomIndex);
+                numPods--;
+            }
+        }
     }
 }
 
@@ -204,327 +256,325 @@ public class CustomMain {
         int[] tamanhosPods = {50, 100, 200, 500, 1000, 5000, 10000};
 
         int[] tamanhosNodes = {10, 20, 50, 100, 200};
-      
+
         int numberExecutions = 10;
-      
-        FileWriter writerKubescheduler = new FileWriter(new File("kubescheduler.csv"));
+
+        //FileWriter writerKubescheduler = new FileWriter(new File("kubescheduler.csv"));
         FileWriter writerFormulation = new FileWriter(new File("formulation.csv"));
-        FileWriter writerPodsPending = new FileWriter(new File("podspending.csv"));
+        //FileWriter writerPodsPending = new FileWriter(new File("podspending.csv"));
 
-        writerKubescheduler.write("number of pods; number of nodes; solution cost; time (ms) \n");
-        writerFormulation.write("number of pods; number of nodes; solution cost; time (ms) \n");
-        writerPodsPending.write("number of pods; number of nodes; slot of time; pending pods \n");
+        //writerKubescheduler.write("number of pods; number of nodes; solution cost; time (ms) \n");
+        writerFormulation.write("time slot; number of pods; number of nodes; solution cost; time (ms) \n");
+        //writerPodsPending.write("number of pods; number of nodes; slot of time; pending pods \n");
 
-        for(int numPods : tamanhosPods) {
-            for(int numNodes : tamanhosNodes) {
-              
-                    /* The only valid configuration when we consider 5 nodes is the one with 10 pods. */
-                    if (numNodes == 5 && numPods != 10)
-                        continue;
+        //TODO timeslot
+        //TODO investigar qual o pod que ele coloca na lista de pending e pq sempre 1
+        //TODO talvez tirar o for
+        //sortear tamanho de pod e tamanho de nós
+        //entrar num for para cada timestep
+        //criar aleatoriamente pods e nós
+        //criar 4 metodos - recebe inteiro, x e aumenta quantidade de nos - somando x
+        //mexer nos pós - desvio padrao
 
-                    System.out.println("Total pods: " + numPods + " and Total Nodes: " + numNodes);
+        int indexPod = ThreadLocalRandom.current().nextInt(0, 6);
+        int indexNode = ThreadLocalRandom.current().nextInt(0, 4);
 
-                    /* Create the data structures and generate random data. */
-                    List<Node> nodes = new ArrayList<>(numNodes);
-                    List<Pod> pods = new ArrayList<>(numPods);
-                    List<Pod> pendingPodsList = new ArrayList<>();
-                    HashMap<Pod, Node> allocation = new HashMap<>();
-                    TreeSet<Node> openedNodes = new TreeSet<>();
+        int numPods = tamanhosPods[indexPod];
+        int numNodes = tamanhosNodes[indexNode];
 
-                    KubeScheduler kubeScheduler = new KubeScheduler();
+        System.out.println("Number of pods: " + numPods + " and Number of Nodes: " + numNodes);
 
-                    Instance instance = new Instance(numPods, numNodes);
+        KubeScheduler kubeScheduler = new KubeScheduler();
 
-                    /* Create nodes using random data. */
-                    for (int i = 0; i < numNodes; i++) {
-                        Node node = new Node(instance.getCapacity(), i, instance.getOpeningCost(), instance.getAllocationCost(), instance.getErrorPenalization(), instance.getNodeAffinity());
-                        nodes.add(node);    
-                        kubeScheduler.addNode(node);
-                    }
-              
-                    /* Create pods using random data. */
-                    for (int j = 0; j < numPods; j++) {
-                        Pod pod = new Pod(instance.getResourceUsage(), j, instance.getErrors());
-                        pods.add(pod);
-                    }
+        //kubeScheduler.addNode(node);
 
-                    /* Perform computational experiments regarding the Kubescheduler algorithm. */
+        Instance instance = new Instance(numPods, numNodes);
 
-                    long startTime = System.currentTimeMillis();
+        instance.createPods();
 
-                    int totalTime = 20;
+        instance.createNodes();
 
-                    int slotofTime = 0;
+        /* Perform computational experiments with respect to the time horizon. */
 
-                    int pendingPods = 0;
-                    
-                    while (slotofTime <= totalTime) {
-                        
-                        allocation.clear();
-                        openedNodes.clear();
+        //long startTime = System.currentTimeMillis();
 
-                        boolean isNodeAvailable = ThreadLocalRandom.current().nextBoolean();
+        int totalTime = 20;
 
-                        for(Node node : nodes)
-                            node.clear();
+        int timeSlot = 0;
 
-                        if(isNodeAvailable) {
-                            if(!pendingPodsList.isEmpty())
-                                pods.addAll(pendingPodsList);
-                            for (Pod pod : pods) {
-                                Node allocatedNode = kubeScheduler.schedulePod(pod);
-                                allocation.put(pod, allocatedNode);
-                                openedNodes.add(allocatedNode);
-                            }
-                        } else {
-                            for (Pod pod : pods) {
-                                pendingPodsList.clear();
-                                pendingPodsList.add(pod);
-                                pendingPods = pendingPodsList.size();
-                            }
-                        }
-                        slotofTime++;
+        int pendingPods = 0;
 
-                        writerPodsPending.write(numPods + "; " + numNodes + "; " + slotofTime + "; " + pendingPods + "\n");
-                    }
+        while (timeSlot < totalTime) {
+
+            List<Node> nodes = instance.getNodes();
+            List<Pod> pods = instance.getPods();
+
+            numNodes = nodes.size();
+            numPods = pods.size();
+
+            //allocation.clear();
+            //openedNodes.clear();
+
+            //boolean isNodeAvailable = ThreadLocalRandom.current().nextBoolean();
 
 
-                    // Schedule pods and measure the time taken
-                    long endTime = System.currentTimeMillis();
 
-                    long elapsedTime = (endTime - startTime) / numberExecutions;
-            
-                    // Print the pods allocated to each node
-                    // for (Node node : kubeScheduler.nodes) {
-                    //     System.out.println("Node " + node.getIndex() + " with capacity " + node.getCapacity() + " has pods with sizes: " + node.getPods());
-                    // }
-            
-                    // Calculate quality score
-                    double totalCost = 0.0;
-              
-                    /* Sums the opening cost for all opened nodes. */
-                    Iterator<Node> iterator = openedNodes.iterator();
-                    
-                    while (iterator.hasNext()) {
-                        Node tempNode = iterator.next();
-                        totalCost += tempNode.getOpeningCost();
-                    }
-              
-                    /* Sums the allocation cost for each allocation performed involving a pod and a node. */
-                    for (Pod tempPod : pods) {
-                        Node tempNode = allocation.get(tempPod);
+            //for(Node node : nodes)
+            //    node.clear();
 
-                        if (tempNode != null) {
-                           totalCost += tempNode.getAllocationCost();
-                           totalCost += tempNode.getErrorPenalization() * tempPod.getErrors();
-                        }
-                    }
+            //TODO
+            /*if(isNodeAvailable) {
+                if(!pendingPodsList.isEmpty())
+                    pods.addAll(pendingPodsList);
+                for (Pod pod : pods) {
+                    Node allocatedNode = kubeScheduler.schedulePod(pod);
+                    allocation.put(pod, allocatedNode);
+                    openedNodes.add(allocatedNode);
+                }
+            } else {
+                for (Pod pod : pods) {
+                    pendingPodsList.clear();
+                    pendingPodsList.add(pod);
+                    pendingPods = pendingPodsList.size();
+                }
+            }*/
 
-                    System.out.println("Total Cost: " + totalCost);  
-                    System.out.println("Total time taken: " + elapsedTime + " ms");
-              
-                    writerKubescheduler.write(numPods + "; " + numNodes + "; " + totalCost + "; " + elapsedTime + "\n");
-              
-              
-                    /* ============================================================================================================================================================ */
-              
-                    /* Perform computational experiments with respect to the Mixed Integer Programming formulation. */
-              
-                    try {
-                      
-                    double e[] = new double[numPods];
-                      
-                    for(int i = 0; i < numPods; i++)
-                            e[i] = 0.0;
-                      
-                    double gamma[] = new double[numNodes];
-                      
-                    for(int i = 0; i < numNodes; i++)
-                            gamma[i] = 0.0;
-                      
-                    /* Builds the alpha array containing nodes' opening costs. */
-                    double alpha[] = new double[numNodes];
-                      
-                    for(int i = 0; i < numNodes; i++)
+            // Schedule pods and measure the time taken
+            //long endTime = System.currentTimeMillis();
+
+            //long elapsedTime = (endTime - startTime) / numberExecutions;
+
+            // Print the pods allocated to each node
+            // for (Node node : kubeScheduler.nodes) {
+            //     System.out.println("Node " + node.getIndex() + " with capacity " + node.getCapacity() + " has pods with sizes: " + node.getPods());
+            // }
+
+            // Calculate quality score
+            //double totalCost = 0.0;
+
+            /* Sums the opening cost for all opened nodes. */
+            //Iterator<Node> iterator = openedNodes.iterator();
+
+            //while (iterator.hasNext()) {
+            //    Node tempNode = iterator.next();
+            //    totalCost += tempNode.getOpeningCost();
+            //}
+
+            /* Sums the allocation cost for each allocation performed involving a pod and a node. */
+            //for (Pod tempPod : pods) {
+            //    Node tempNode = allocation.get(tempPod);
+
+            //    if (tempNode != null) {
+            //        totalCost += tempNode.getAllocationCost();
+            //        totalCost += tempNode.getErrorPenalization() * tempPod.getErrors();
+            //    }
+            //}
+
+            //System.out.println("Total Cost: " + totalCost);
+            //System.out.println("Total time taken: " + elapsedTime + " ms");
+
+            //writerKubescheduler.write(numPods + "; " + numNodes + "; " + totalCost + "; " + elapsedTime + "\n");
+
+
+            /* ============================================================================================================================================================ */
+
+            /* Perform computational experiments with respect to the Mixed Integer Programming formulation. */
+
+            try {
+
+                double e[] = new double[numPods];
+
+                for(int i = 0; i < numPods; i++)
+                    e[i] = 0.0;
+
+                double gamma[] = new double[numNodes];
+
+                for(int i = 0; i < numNodes; i++)
+                    gamma[i] = 0.0;
+
+                /* Builds the alpha array containing nodes' opening costs. */
+                double alpha[] = new double[numNodes];
+
+                for(int i = 0; i < numNodes; i++)
+                {
+                    Node tempNode = nodes.get(i);
+                    alpha[i] = tempNode.getOpeningCost();
+                }
+
+                /* Builds the beta array containing pods' allocation costs. */
+                double beta[] = new double[numNodes];
+
+                for(int i = 0; i < numNodes; i++)
+                {
+                    Node tempNode = nodes.get(i);
+                    beta[i] = tempNode.getAllocationCost();
+                }
+
+                /* Builds the capacity array containing nodes' capacities. */
+                double U[] = new double[numNodes];
+
+                for(int i = 0; i < numNodes; i++)
+                {
+                    Node tempNode = nodes.get(i);
+                    U[i] = tempNode.getCapacity();
+                }
+
+                /* Builds the usage array containing pods' resource usages. */
+                double u[] = new double[numPods];
+                for(int j = 0; j < numPods; j++)
+                {
+                    Pod tempPod = pods.get(j);
+                    u[j] = tempPod.getResourceUsage();
+                }
+
+                /* Creates the model. */
+                GRBEnv env = new GRBEnv();
+                GRBModel model = new GRBModel(env);
+                model.set(GRB.StringAttr.ModelName, "nodePodsAllocation");
+                model.set(GRB.DoubleParam.MIPGap, 0.03);
+
+                //restricao 5, para falar que x é binario
+                GRBVar[] x = new GRBVar[numNodes];
+
+                for (int i = 0; i < numNodes; ++i)
+                {
+                    x[i] = model.addVar(0.0, 1.0, 0.0, GRB.BINARY, "x_" + i);
+                }
+
+                // Se um pod j é atendido por um node i
+                GRBVar[][] y = new GRBVar[numNodes][numPods];
+
+                //restricao 6, para falar que y é binario
+                for (int i = 0; i < numNodes; ++i)
+                {
+                    for (int j = 0; j < numPods; ++j)
                     {
-                        Node tempNode = nodes.get(i);
-                        alpha[i] = tempNode.getOpeningCost();
+                        y[i][j] = model.addVar(0.0, 1.0, 0.0, GRB.BINARY, "y_" + i + "," + j);
                     }
-                      
-                    /* Builds the beta array containing pods' allocation costs. */
-                    double beta[] = new double[numNodes];
-                      
-                    for(int i = 0; i < numNodes; i++)
-                    {
-                        Node tempNode = nodes.get(i);
-                        beta[i] = tempNode.getAllocationCost();
-                    }
+                }
 
-                    /* Builds the capacity array containing nodes' capacities. */
-                    double U[] = new double[numNodes];
-                      
-                    for(int i = 0; i < numNodes; i++)
-                    {
-                            Node tempNode = nodes.get(i);
-                            U[i] = tempNode.getCapacity();
-                    }
+                // MINIMIZAR A FUNÇÃO OBJETIVO
+                model.set(GRB.IntAttr.ModelSense, GRB.MINIMIZE);
 
-                    /* Builds the usage array containing pods' resource usages. */
-                    double u[] = new double[numPods];
+
+                // Montar expressão linear da fun obj
+                GRBLinExpr funcaoObjetivo = new GRBLinExpr();
+
+                for(int i = 0; i < numNodes; i++)
+                {
+                    funcaoObjetivo.addTerm(alpha[i], x[i]);
+
                     for(int j = 0; j < numPods; j++)
                     {
-                            Pod tempPod = pods.get(j);
-                            u[j] = tempPod.getResourceUsage();
+                        funcaoObjetivo.addTerm(beta[i], y[i][j]);
+                        funcaoObjetivo.addTerm(gamma[i] * e[j], y[i][j]);
                     }
+                }
 
-                    /* Creates the model. */
-                    GRBEnv env = new GRBEnv();
-                    GRBModel model = new GRBModel(env);
-                    model.set(GRB.StringAttr.ModelName, "nodePodsAllocation");
-                    model.set(GRB.DoubleParam.MIPGap, 0.01);
+                model.setObjective(funcaoObjetivo, GRB.MINIMIZE);
 
-                    //restricao 5, para falar que x é binario
-                    GRBVar[] x = new GRBVar[numNodes];
-                      
-                    for (int i = 0; i < numNodes; ++i)
+                // Criação da restrição 1
+
+                GRBLinExpr somatorio = new GRBLinExpr();
+
+                for (int i = 0; i < numNodes; ++i)
+                {
+                    somatorio.addTerm(1.0, x[i]);
+                }
+
+                model.addConstr(somatorio, GRB.GREATER_EQUAL, 1, "MinimoNodes");
+
+                // Criação da restrição 2
+
+                for (int i = 0; i < numNodes; ++i)
+                {
+                    for (int j = 0; j < numPods; ++j)
                     {
-                            x[i] = model.addVar(0.0, 1.0, 0.0, GRB.BINARY, "x_" + i);
+                        model.addConstr(y[i][j], GRB.LESS_EQUAL, x[i], "AlocacaoNoAberto_" + i + "," + j);
                     }
+                }
 
-                    // Se um pod j é atendido por um node i
-                    GRBVar[][] y = new GRBVar[numNodes][numPods];
+                // Criação da restrição 3
 
-                    //restricao 6, para falar que y é binario
-                    for (int i = 0; i < numNodes; ++i)
-                    {
-                        for (int j = 0; j < numPods; ++j)
-                        {
-                                y[i][j] = model.addVar(0.0, 1.0, 0.0, GRB.BINARY, "y_" + i + "," + j);
-                        }
-                    }
+                GRBLinExpr somatorio_Y;
 
-                    // MINIMIZAR A FUNÇÃO OBJETIVO
-                    model.set(GRB.IntAttr.ModelSense, GRB.MINIMIZE);
-
-                      
-                    // Montar expressão linear da fun obj
-                    GRBLinExpr funcaoObjetivo = new GRBLinExpr();
-
-                    for(int i = 0; i < numNodes; i++)
-                    {
-                       funcaoObjetivo.addTerm(alpha[i], x[i]);
-                      
-                       for(int j = 0; j < numPods; j++)
-                       {
-                          funcaoObjetivo.addTerm(beta[i], y[i][j]);
-                          funcaoObjetivo.addTerm(gamma[i] * e[j], y[i][j]);
-                       }
-                    }
-                      
-                    model.setObjective(funcaoObjetivo, GRB.MINIMIZE);
-
-                    // Criação da restrição 1
-
-                    GRBLinExpr somatorio = new GRBLinExpr();
-
-                    for (int i = 0; i < numNodes; ++i)
-                    { 
-                            somatorio.addTerm(1.0, x[i]);
-                    }
-
-                    model.addConstr(somatorio, GRB.GREATER_EQUAL, 1, "MinimoNodes");
-
-                    // Criação da restrição 2
+                for (int j = 0; j < numPods; ++j)
+                {
+                    somatorio_Y = new GRBLinExpr();
 
                     for (int i = 0; i < numNodes; ++i)
                     {
-                            for (int j = 0; j < numPods; ++j)
-                        { 
-                                model.addConstr(y[i][j], GRB.LESS_EQUAL, x[i], "AlocacaoNoAberto_" + i + "," + j); 
-                        }
+                        somatorio_Y.addTerm(1.0, y[i][j]);
                     }
 
-                    // Criação da restrição 3
+                    model.addConstr(somatorio_Y, GRB.EQUAL, 1, "AtendimentoPod_" + j);
+                }
 
-                    GRBLinExpr somatorio_Y;
+                // Criação da restrição 4
+
+                GRBLinExpr somatorio_U;
+
+                GRBLinExpr capacidadeParaNoAberto;
+
+                for (int i = 0; i < numNodes; ++i)
+                {
+                    somatorio_U = new GRBLinExpr();
+
+                    capacidadeParaNoAberto = new GRBLinExpr();
 
                     for (int j = 0; j < numPods; ++j)
                     {
-                            somatorio_Y = new GRBLinExpr();
-
-                            for (int i = 0; i < numNodes; ++i)
-                            {
-                                    somatorio_Y.addTerm(1.0, y[i][j]);
-                        }
-
-                            model.addConstr(somatorio_Y, GRB.EQUAL, 1, "AtendimentoPod_" + j);
+                        somatorio_U.addTerm(u[j], y[i][j]);
                     }
 
-                    // Criação da restrição 4
+                    capacidadeParaNoAberto.addTerm(U[i], x[i]);
 
-                    GRBLinExpr somatorio_U;
+                    model.addConstr(somatorio_U, GRB.LESS_EQUAL, capacidadeParaNoAberto, "CapacidadeNo_" + i);
+                }
 
-                    GRBLinExpr capacidadeParaNoAberto;
+                // // resto do código anterior. faz sentido?
+                // for (int i = 0; i < nNodes; ++i) {
+                //   x[i].set(GRB.DoubleAttr.Start, 1.0);
+                // }
 
-                    for (int i = 0; i < numNodes; ++i)
-                    {
-                      somatorio_U = new GRBLinExpr();
+                // // custo fixo. faz sentido essa parte?
+                // System.out.println("iniciando:");
+                // double maxFixo = -GRB.INFINITY;
+                // for (int i = 0; i < nNodes; ++i) {
+                //   if (CustoFixo[i] > maxFixo) {
+                //     maxFixo = CustoFixo[i];
+                //   }
+                // }
+                // for (int i = 0; i < nPods; ++i) {
+                //   if (CustoFixo[i] == maxFixo) {
+                //     x[i].set(GRB.DoubleAttr.Start, 0.0);
+                //     System.out.println("Fechando Node " + i + "\n");
+                //     break;
+                //   }
+                // }
 
-                      capacidadeParaNoAberto = new GRBLinExpr();
+                // Resolver 'root relaxation'
+                //model.set(GRB.IntParam.Method, GRB.METHOD_BARRIER);
 
-                            for (int j = 0; j < numPods; ++j)
-                        {
-                            somatorio_U.addTerm(u[j], y[i][j]);
-                        }
+                long startTime = System.currentTimeMillis();
 
-                       capacidadeParaNoAberto.addTerm(U[i], x[i]);
+                for (int i = 0; i < numberExecutions; i++)
+                {
+                    // Resolve
+                    model.optimize();
+                }
 
-                       model.addConstr(somatorio_U, GRB.LESS_EQUAL, capacidadeParaNoAberto, "CapacidadeNo_" + i);
-                    }
+                // Schedule pods and measure the time taken
+                long endTime = System.currentTimeMillis();
 
-                    // // resto do código anterior. faz sentido?
-                    // for (int i = 0; i < nNodes; ++i) {
-                    //   x[i].set(GRB.DoubleAttr.Start, 1.0);
-                    // }
+                long elapsedTime = (endTime - startTime) / numberExecutions;
 
-                    // // custo fixo. faz sentido essa parte?
-                    // System.out.println("iniciando:");
-                    // double maxFixo = -GRB.INFINITY;
-                    // for (int i = 0; i < nNodes; ++i) {
-                    //   if (CustoFixo[i] > maxFixo) {
-                    //     maxFixo = CustoFixo[i];
-                    //   }
-                    // }
-                    // for (int i = 0; i < nPods; ++i) {
-                    //   if (CustoFixo[i] == maxFixo) {
-                    //     x[i].set(GRB.DoubleAttr.Start, 0.0);
-                    //     System.out.println("Fechando Node " + i + "\n");
-                    //     break;
-                    //   }
-                    // }
+                // Imprime solução
 
-                    // Resolver 'root relaxation'
-                    //model.set(GRB.IntParam.Method, GRB.METHOD_BARRIER);
+                System.out.println("Solution Cost: " + model.get(GRB.DoubleAttr.ObjVal));
+                System.out.println("Total time taken: " + elapsedTime + " ms");
 
-                    startTime = System.currentTimeMillis();
-                    
-                    for (int i = 0; i < numberExecutions; i++)
-                    { 
-                            // Resolve
-                            model.optimize();
-                    }
-
-                    // Schedule pods and measure the time taken
-                    endTime = System.currentTimeMillis();
-
-                    elapsedTime = (endTime - startTime) / numberExecutions;
-
-                    // Imprime solução
-
-                    System.out.println("Solution Cost: " + model.get(GRB.DoubleAttr.ObjVal));  
-                    System.out.println("Total time taken: " + elapsedTime + " ms");
-                      
-                    writerFormulation.write(numPods + "; " + numNodes + "; " + model.get(GRB.DoubleAttr.ObjVal) + "; " + elapsedTime + "\n");
+                writerFormulation.write(timeSlot + "; " + numPods + "; " + numNodes + "; " + model.get(GRB.DoubleAttr.ObjVal) + "; " + elapsedTime + "\n");
 
                     /*System.out.println("SOLUÇÃO:");
 
@@ -547,28 +597,31 @@ public class CustomMain {
 
                         if (y[i][j].get(GRB.DoubleAttr.X) == 1.0) {
                           System.out.println("Pod " + j + " alocado ao node " + i + ".");
-                        }   
+                        }
                       }
                     }*/
 
-                    // Dispose no modelo e ambiente
+                // Dispose no modelo e ambiente
 
-                    model.dispose();
-                    env.dispose();
+                model.dispose();
+                env.dispose();
 
-                  } catch (GRBException e) {
-                    System.out.println("Error code: " + e.getErrorCode() + ". " +
-                        e.getMessage());
-                        }
-              
-                    writerKubescheduler.flush();
-                    writerFormulation.flush();
-                    writerPodsPending.flush();
+                instance.modifyNumberPods();
+
+                timeSlot++;
+
+            } catch (GRBException e) {
+                System.out.println("Error code: " + e.getErrorCode() + ". " + e.getMessage());
             }
+
+            //writerKubescheduler.flush();
+            writerFormulation.flush();
+            //writerPodsPending.flush();
         }
-      
-        writerKubescheduler.close();
+
+
+        //writerKubescheduler.close();
         writerFormulation.close();
-        writerPodsPending.close();
+        //writerPodsPending.close();
     }
 }
