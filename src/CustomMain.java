@@ -4,6 +4,7 @@ import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.util.*;
+import java.util.concurrent.ThreadLocalRandom;
 
 class Pod {
     private int resourceUsage;
@@ -258,10 +259,6 @@ public class CustomMain {
 
         int numberExecutions = 10;
 
-        long seed = 100;
-
-        Random random = new Random(seed);
-
         //FileWriter writerKubescheduler = new FileWriter(new File("kubescheduler.csv"));
         FileWriter writerFormulation = new FileWriter(new File("formulation.csv"));
         //FileWriter writerPodsPending = new FileWriter(new File("podspending.csv"));
@@ -279,8 +276,8 @@ public class CustomMain {
         //criar 4 metodos - recebe inteiro, x e aumenta quantidade de nos - somando x
         //mexer nos pós - desvio padrao
 
-        int indexPod = random.nextInt(0, 6);
-        int indexNode = random.nextInt(0, 4);
+        int indexPod =  ThreadLocalRandom.current().nextInt(0, 6);
+        int indexNode =  ThreadLocalRandom.current().nextInt(0, 4);
 
         int numPods = tamanhosPods[indexPod];
         int numNodes = tamanhosNodes[indexNode];
