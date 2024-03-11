@@ -4,7 +4,6 @@ import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.util.*;
-import java.util.concurrent.ThreadLocalRandom;
 
 class Pod {
     private int resourceUsage;
@@ -107,9 +106,9 @@ class Instance {
     /* Create the data structures and generate random data. */
     private List<Node> nodes = new ArrayList<>(numNodes);
     private List<Pod> pods = new ArrayList<>(numPods);
-    private List<Pod> pendingPodsList = new ArrayList<>();
-    private HashMap<Pod, Node> allocation = new HashMap<>();
-    private TreeSet<Node> openedNodes = new TreeSet<>();
+
+    long seed = 100;
+    Random random = new Random(seed);
 
     public Instance(int numPods, int numNodes) {
         this.numPods = numPods;
@@ -120,21 +119,21 @@ class Instance {
         int capacityMin = numPods / numNodes + 1; // Specify the minimum node capacity
         int capacityMax = numPods * 2; // Specify the maximum node capacity
 
-        return ThreadLocalRandom.current().nextInt(capacityMin, capacityMax + 1);
+        return random.nextInt(capacityMin, capacityMax + 1);
     }
 
     public int getResourceUsage() {
         int resourceUsageMin = 1; // Specify the minimum pod size
         int resourceUsageMax = 10; // Specify the maximum pod size
 
-        return ThreadLocalRandom.current().nextInt(resourceUsageMin, resourceUsageMax + 1);
+        return random.nextInt(resourceUsageMin, resourceUsageMax + 1);
     }
 
     public int getOpeningCost() {
         int openingCostInit = 1; // Specify the minimum cost per unit opening node
         int openingCostEnd = 4 * numNodes; // Specify the maximum cost per unit opening node
 
-        return ThreadLocalRandom.current().nextInt(openingCostInit, openingCostEnd + 1);
+        return random.nextInt(openingCostInit, openingCostEnd + 1);
     }
 
     public int getAllocationCost() {
@@ -142,25 +141,25 @@ class Instance {
         int allocatingCostInit = 1; // Specify the minimum cost per unit allocation cost
         int allocatingCostEnd = 4 * numNodes; // Specify the maximum cost per unit allocation cost
 
-        return ThreadLocalRandom.current().nextInt(allocatingCostInit, allocatingCostEnd + 1);
+        return random.nextInt(allocatingCostInit, allocatingCostEnd + 1);
     }
 
     public int getErrors() {
         int errorsInit = 1; // Specify the minimum number of errors per pod
         int errorsEnd = 20; // Specify the maximum number of errors per pod
 
-        return ThreadLocalRandom.current().nextInt(errorsInit, errorsEnd + 1);
+        return random.nextInt(errorsInit, errorsEnd + 1);
     }
 
     public int getErrorPenalization() {
         int errorPenalizationInit = 1; // Specify the minimum error penalization per nodes
         int errorPenalizationEnd = 10; // Specify the maximium error penalization per nodes
 
-        return ThreadLocalRandom.current().nextInt(errorPenalizationInit, errorPenalizationEnd + 1);
+        return random.nextInt(errorPenalizationInit, errorPenalizationEnd + 1);
     }
 
     public boolean getNodeAffinity() {
-        return ThreadLocalRandom.current().nextBoolean();
+        return random.nextBoolean();
     }
 
     public void createNodes() {
@@ -192,8 +191,8 @@ class Instance {
         int minValue = (int) (numPods * 0.05);
         int maxValue = (int) (numPods * 0.30);
 
-        int modification = ThreadLocalRandom.current().nextInt(minValue, maxValue);
-        boolean randomBoolean = ThreadLocalRandom.current().nextBoolean();
+        int modification = random.nextInt(minValue, maxValue);
+        boolean randomBoolean = random.nextBoolean();
 
         if(randomBoolean) {
             for(int i = 0; i < modification; i++) {
@@ -205,7 +204,7 @@ class Instance {
         }
         else {
             for(int i = 0; i < modification; i++) {
-                int randomIndex = ThreadLocalRandom.current().nextInt(0, numPods);
+                int randomIndex = random.nextInt(0, numPods);
                 pods.remove(randomIndex);
                 numPods--;
             }
@@ -259,6 +258,10 @@ public class CustomMain {
 
         int numberExecutions = 10;
 
+        long seed = 100;
+
+        Random random = new Random(seed);
+
         //FileWriter writerKubescheduler = new FileWriter(new File("kubescheduler.csv"));
         FileWriter writerFormulation = new FileWriter(new File("formulation.csv"));
         //FileWriter writerPodsPending = new FileWriter(new File("podspending.csv"));
@@ -276,8 +279,8 @@ public class CustomMain {
         //criar 4 metodos - recebe inteiro, x e aumenta quantidade de nos - somando x
         //mexer nos pós - desvio padrao
 
-        int indexPod = ThreadLocalRandom.current().nextInt(0, 6);
-        int indexNode = ThreadLocalRandom.current().nextInt(0, 4);
+        int indexPod = random.nextInt(0, 6);
+        int indexNode = random.nextInt(0, 4);
 
         int numPods = tamanhosPods[indexPod];
         int numNodes = tamanhosNodes[indexNode];
