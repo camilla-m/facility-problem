@@ -1,10 +1,11 @@
+//FORMULATION COM T
+
 import gurobi.*;
 
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.util.*;
-import java.util.concurrent.ThreadLocalRandom;
 
 class Pod {
     private int resourceUsage;
@@ -264,7 +265,7 @@ public class CustomMain {
         //FileWriter writerPodsPending = new FileWriter(new File("podspending.csv"));
 
         //writerKubescheduler.write("number of pods; number of nodes; solution cost; time (ms) \n");
-        writerFormulation.write("time slot; number of pods; number of nodes; solution cost; time (ms) \n");
+        writerFormulation.write("time slot; number of pods; used Nodes; solution cost; time (ms) \n");
         //writerPodsPending.write("number of pods; number of nodes; slot of time; pending pods \n");
 
         //TODO timeslot
@@ -276,11 +277,11 @@ public class CustomMain {
         //criar 4 metodos - recebe inteiro, x e aumenta quantidade de nos - somando x
         //mexer nos pós - desvio padrao
 
-        int indexPod =  ThreadLocalRandom.current().nextInt(0, 6);
-        int indexNode =  ThreadLocalRandom.current().nextInt(0, 4);
+        int indexPod =  0;
+        int indexNode =  0;
 
-        int numPods = tamanhosPods[indexPod];
-        int numNodes = tamanhosNodes[indexNode];
+        int numPods = 5000;
+        int numNodes = 100;
 
         System.out.println("Number of pods: " + numPods + " and Number of Nodes: " + numNodes);
 
@@ -302,7 +303,11 @@ public class CustomMain {
 
         int timeSlot = 0;
 
+        int usedNodes = 0;
+
         int pendingPods = 0;
+
+        TreeSet<Node> openedNodes = new TreeSet<>();
 
         while (timeSlot < totalTime) {
 
@@ -399,6 +404,7 @@ public class CustomMain {
                 {
                     Node tempNode = nodes.get(i);
                     alpha[i] = tempNode.getOpeningCost();
+                    openedNodes.add(tempNode);
                 }
 
                 /* Builds the beta array containing pods' allocation costs. */
@@ -574,7 +580,10 @@ public class CustomMain {
                 System.out.println("Solution Cost: " + model.get(GRB.DoubleAttr.ObjVal));
                 System.out.println("Total time taken: " + elapsedTime + " ms");
 
-                writerFormulation.write(timeSlot + "; " + numPods + "; " + numNodes + "; " + model.get(GRB.DoubleAttr.ObjVal) + "; " + elapsedTime + "\n");
+                // Creating a set to store unique hashes
+                usedNodes = openedNodes.stream().distinct().toList().size();
+
+                writerFormulation.write(timeSlot + "; " + numPods + "; " + usedNodes + "; " + model.get(GRB.DoubleAttr.ObjVal) + "; " + elapsedTime + "\n");
 
                     /*System.out.println("SOLUÇÃO:");
 

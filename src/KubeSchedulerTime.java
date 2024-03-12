@@ -5,6 +5,7 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.stream.Collectors;
 
 class Pod {
     private int resourceUsage;
@@ -261,7 +262,7 @@ public class CustomMain {
         //FileWriter writerPodsPending = new FileWriter(new File("podspending.csv"));
 
         //writerKubescheduler.write("number of pods; number of nodes; solution cost; time (ms) \n");
-        writerKubescheduler.write("time slot; number of pods; number of nodes; solution cost; time (ms) \n");
+        writerKubescheduler.write("time slot; number of pods; usedNodes; solution cost; time (ms) \n");
 
         int indexPod =  ThreadLocalRandom.current().nextInt(0, 6);
         int indexNode =  ThreadLocalRandom.current().nextInt(0, 4);
@@ -285,7 +286,7 @@ public class CustomMain {
 
         int timeSlot = 0;
 
-        int pendingPods = 0;
+        int usedNodes = 0;
 
         while (timeSlot < totalTime) {
 
@@ -299,9 +300,6 @@ public class CustomMain {
             numPods = pods.size();
 
             KubeScheduler kubeScheduler = new KubeScheduler(nodes);
-
-            allocation.clear();
-            openedNodes.clear();
 
             for(Node node : nodes)
                 node.clear();
@@ -329,6 +327,8 @@ public class CustomMain {
             long endTime = System.currentTimeMillis();
 
             long elapsedTime = (endTime - startTime) / numberExecutions;
+
+            int uniqueNodes = openedNodes.stream().distinct().toList().size();
 
             // Print the pods allocated to each node
             // for (Node node : kubeScheduler.nodes) {
@@ -358,7 +358,7 @@ public class CustomMain {
             System.out.println("Total Cost: " + totalCost);
             System.out.println("Total time taken: " + elapsedTime + " ms");
 
-            writerKubescheduler.write(timeSlot + "; " + numPods + "; " + numNodes + "; " + totalCost + "; " + elapsedTime + "\n");
+            writerKubescheduler.write(timeSlot + "; " + numPods + "; " + uniqueNodes + "; " + totalCost + "; " + elapsedTime + "\n");
 
             instance.modifyNumberPods();
 
