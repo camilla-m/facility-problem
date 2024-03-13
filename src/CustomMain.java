@@ -280,8 +280,8 @@ public class CustomMain {
         int indexPod =  0;
         int indexNode =  0;
 
-        int numPods = 5000;
-        int numNodes = 100;
+        int numPods = 100;
+        int numNodes = 50;
 
         System.out.println("Number of pods: " + numPods + " and Number of Nodes: " + numNodes);
 
@@ -404,7 +404,6 @@ public class CustomMain {
                 {
                     Node tempNode = nodes.get(i);
                     alpha[i] = tempNode.getOpeningCost();
-                    openedNodes.add(tempNode);
                 }
 
                 /* Builds the beta array containing pods' allocation costs. */
@@ -498,6 +497,7 @@ public class CustomMain {
                     {
                         model.addConstr(y[i][j], GRB.LESS_EQUAL, x[i], "AlocacaoNoAberto_" + i + "," + j);
                     }
+
                 }
 
                 // Criação da restrição 3
@@ -580,23 +580,17 @@ public class CustomMain {
                 System.out.println("Solution Cost: " + model.get(GRB.DoubleAttr.ObjVal));
                 System.out.println("Total time taken: " + elapsedTime + " ms");
 
-                // Creating a set to store unique hashes
-                usedNodes = openedNodes.stream().distinct().toList().size();
+                for (int i = 0; i < numNodes; ++i) {
+                    if (x[i].get(GRB.DoubleAttr.X) == 1.0) {
+                        usedNodes++;
+                    }
+                }
 
                 writerFormulation.write(timeSlot + "; " + numPods + "; " + usedNodes + "; " + model.get(GRB.DoubleAttr.ObjVal) + "; " + elapsedTime + "\n");
 
                     /*System.out.println("SOLUÇÃO:");
 
-                    for (int i = 0; i < numNodes; ++i) {
 
-                      System.out.println("x_" + i + " = " + x[i].get(GRB.DoubleAttr.X));
-
-                      if (x[i].get(GRB.DoubleAttr.X) == 1.0) {
-                        System.out.println("Node " + i + " aberto!");
-                      } else {
-                        System.out.println("Node " + i + " fechado!");
-                      }
-                    }
 
                     for (int i = 0; i < numNodes; ++i) {
 
@@ -618,6 +612,7 @@ public class CustomMain {
                 instance.modifyNumberPods();
 
                 timeSlot++;
+                usedNodes = 0;
 
             } catch (GRBException e) {
                 System.out.println("Error code: " + e.getErrorCode() + ". " + e.getMessage());
